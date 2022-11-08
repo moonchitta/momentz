@@ -1,6 +1,7 @@
 package com.bolaware.viewstimerstory
 
 import android.content.Context
+import android.util.Log
 import androidx.annotation.DrawableRes
 import androidx.constraintlayout.widget.ConstraintLayout
 import android.view.MotionEvent
@@ -12,10 +13,14 @@ import android.widget.VideoView
 import kotlinx.android.synthetic.main.progress_story_view.view.*
 import android.view.GestureDetector
 import android.view.GestureDetector.SimpleOnGestureListener
+import androidx.media3.ui.PlayerView
 import java.lang.Exception
 
 
 class Momentz : ConstraintLayout {
+
+    private var TAG = "Momentz"
+
     private var currentlyShownIndex = 0
     private lateinit var currentView: View
     private var momentzViewList: List<MomentzView>
@@ -26,6 +31,7 @@ class Momentz : ConstraintLayout {
     private var mProgressDrawable : Int = R.drawable.green_lightgrey_drawable
     private var pausedState : Boolean = false
     lateinit var gestureDetector: GestureDetector
+    private var mIsFinished = false
 
     constructor(
         context: Context,
@@ -136,7 +142,7 @@ class Momentz : ConstraintLayout {
         }
 
         if (currentlyShownIndex != libSliderViewList.size - 1) {
-            for (i in currentlyShownIndex + 1..libSliderViewList.size - 1) {
+            for (i in currentlyShownIndex + 1 until libSliderViewList.size) {
                 libSliderViewList[i].progress = 0
                 libSliderViewList[i].cancelProgress()
             }
@@ -175,6 +181,7 @@ class Momentz : ConstraintLayout {
     }
 
     fun pause(withLoader : Boolean) {
+        if(currentlyShownIndex < 0 || currentlyShownIndex >= momentzViewList.size) return
         if(withLoader){
             view.loaderProgressbar.visibility = View.VISIBLE
         }
@@ -182,13 +189,20 @@ class Momentz : ConstraintLayout {
         if(momentzViewList[currentlyShownIndex].view is VideoView){
             (momentzViewList[currentlyShownIndex].view as VideoView).pause()
         }
+        if(momentzViewList[currentlyShownIndex].view is PlayerView){
+            (momentzViewList[currentlyShownIndex].view as PlayerView).player?.pause()
+        }
     }
 
     fun resume() {
+        if(currentlyShownIndex < 0 || currentlyShownIndex >= momentzViewList.size) return
         view.loaderProgressbar.visibility = View.GONE
         libSliderViewList[currentlyShownIndex].resumeProgress()
         if(momentzViewList[currentlyShownIndex].view is VideoView){
             (momentzViewList[currentlyShownIndex].view as VideoView).start()
+        }
+        if(momentzViewList[currentlyShownIndex].view is PlayerView){
+            (momentzViewList[currentlyShownIndex].view as PlayerView).player?.play()
         }
     }
 
@@ -196,7 +210,19 @@ class Momentz : ConstraintLayout {
 
     }
 
+    fun setProgress(progress: Int) {
+        if(currentlyShownIndex >= momentzViewList.size) return
+        if (currentlyShownIndex != libSliderViewList.size - 1) {
+            libSliderViewList[currentlyShownIndex].progress = progress
+        }
+    }
+
     fun next() {
+        if(currentlyShownIndex >= momentzViewList.size) {
+            Log.d(TAG, "next: $currentlyShownIndex >= ${momentzViewList.size}")
+            finish()
+            return
+        }
         try {
             if (currentView == momentzViewList[currentlyShownIndex].view) {
                 currentlyShownIndex++
@@ -213,6 +239,7 @@ class Momentz : ConstraintLayout {
 
     private fun finish() {
         momentzCallback.done()
+        mIsFinished = true
         for (progressBar in libSliderViewList) {
             progressBar.cancelProgress()
             progressBar.progress = 100
@@ -228,7 +255,11 @@ class Momentz : ConstraintLayout {
                 }
             }
         } catch (e: IndexOutOfBoundsException) {
+            e.printStackTrace()
             currentlyShownIndex -= 2
+            if (0 > currentlyShownIndex) {
+                currentlyShownIndex = 0
+            }
         } finally {
             show()
         }
